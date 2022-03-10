@@ -14,6 +14,8 @@ imports
 library(dplyr)
 library(affy)
 library(scales)
+library(DESeq2)
+library(pheatmap)
 ```
 
 
@@ -97,7 +99,11 @@ This might be explained because of regulation but also the testing can have have
 
 Add 1 to the whole dataframe so it can logscale
 ```{r}
-data <- data[2:24] + 1
+#set the gene column as row names
+row.names(data) <- data$Gene
+data[1] <- NULL
+
+data <- data + 1
 ```
 
 Boxplot
@@ -131,11 +137,70 @@ abline(h = min(colSums((data)/1000000)), col = "red",
       lty=2, lwd=2)
 ```
 
+normalization
+```{r}
+
+(ddsMat <- DESeqDataSetFromMatrix(countData = data,
+                                  colData = data.frame(samples = names(data)),
+                                  design = ~ 1))
+
+```
 
 ```{r}
+rld.dds <- vst(ddsMat)
+
+rld <- assay(rld.dds)
+
 
 
 ```
+
+```{r}
+j.av <- mean(rld[1:10])
+c.av <- mean(rld[11:23])
+
+j.bi <- mean(rld[1:10]) +qt(c(0.025, 0.975), length(rld[1:10])-1)*sd(rld[1:10]/sqrt(length(rld[1:10])))
+ 
+c.bi <- mean(rld[11:23]) +qt(c(0.025, 0.975), length(rld[11:23])-1)*sd(rld[11:23]/sqrt(length(rld[11:23])))
+
+rld[1:10] <-rld[1:10]  * c.av/j.av
+
+```
+
+```{r}
+sampledist <- dist(t(rld), method = "euclidean", diag = T, upper = T)
+sampledistmatrix <- as.matrix(sampledist)
+```
+
+
+
+
+heatmap
+```{r}
+ann <- data.frame(group = factor(c(1,1,1,rep(2,each=7),3,3,3,4,4,4,5,5,5,6,6,6,6),
+                                labels = c("AD.J147", "AD.ctrl", "AD.CAD31", "AD.ctrl","WT-CAD31", "WT")),
+                  drug = factor(c(rep.int(1,3), rep.int(2,7), rep.int(1,3), rep.int(2,3), rep.int(1,3), rep.int(2,4)), labels = c("on drug", "off drug")),
+                  study = factor(c(rep.int(1,10), rep.int(2,13)),
+                                 labels = c("study j147", "study cad31")))
+                  
+row.names(ann) <- names(data)
+
+pheatmap(sampledistmatrix, show_colnames = FALSE,
+         annotation_col = ann,
+         clustering_distance_rows = sampledist,
+         clustering_distance_cols = sampledist,
+         main = "Euclidean Sample Distances")                  
+
+
+```
+
+
+
+
+
+
+
+
 
 
 
