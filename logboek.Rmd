@@ -15,6 +15,10 @@ library(dplyr)
 library(affy)
 library(scales)
 library(DESeq2)
+library(pheatmap)
+library(PoiClaClu)
+library(ggplot2)
+library(edgeR)
 ```
 
 
@@ -155,16 +159,17 @@ rld <- assay(rld.dds)
 ```
 
 ```{r}
-j.av <- mean(rld[1:10])
-c.av <- mean(rld[11:23])
+j.av <- mean(rld[,1:10])
+c.av <- mean(rld[,11:23])
 
-j.bi <- mean(rld[1:10]) +qt(c(0.025, 0.975), length(rld[1:10])-1)*sd(rld[1:10]/sqrt(length(rld[1:10])))
+j.bi <- mean(rld[,1:10]) +qt(c(0.025, 0.975), length(rld[,1:10])-1)*sd(rld[,1:10]/sqrt(length(rld[,1:10])))
  
-c.bi <- mean(rld[11:23]) +qt(c(0.025, 0.975), length(rld[11:23])-1)*sd(rld[11:23]/sqrt(length(rld[11:23])))
+c.bi <- mean(rld[,11:23]) +qt(c(0.025, 0.975), length(rld[,11:23])-1)*sd(rld[,11:23]/sqrt(length(rld[,11:23])))
 
-#rld[1:10] <-rld[1:10]  * c.av/j.av
+#rld[,11:23] <-rld[,11:23]  * (c.av/j.av)
 
 ```
+
 
 ```{r}
 sampledist <- dist(t(rld), method = "euclidean", diag = T, upper = T)
@@ -174,22 +179,246 @@ sampledistmatrix <- as.matrix(sampledist)
 
 
 
-heatmap
+heatmap(both datasets)
 ```{r}
 ann <- data.frame(group = factor(c(1,1,1,rep(2,each=7),3,3,3,4,4,4,5,5,5,6,6,6,6),
-                                labels = c("AD.J147", "AD.ctrl", "AD.CAD31", "AD.CTRL","WT-CAD31", "WT")),
+                                labels = c("AD.J147", "AD.CTRL", "AD.CAD31", "AD.CTRL","WT-CAD31", "WT")),
                   drug = factor(c(rep.int(1,3), rep.int(2,7), rep.int(1,3), rep.int(2,3), rep.int(1,3), rep.int(2,4)), labels = c("on drug", "off drug")),
                   study = factor(c(rep.int(1,10), rep.int(2,13)),
                                  labels = c("study j147", "study cad31")))
                   
 row.names(ann) <- names(data)
 
-pheatmap(sampledistmatrix, show_colnames = FALSE,
+pheatmap(sampledistmatrix, show_colnames = T,
          annotation_col = ann,
          clustering_distance_rows = sampledist,
          clustering_distance_cols = sampledist,
          main = "Euclidean Sample Distances")                  
 
+```
+
+
+### heatmap j147
+```{r}
+ann <- data.frame(group = factor(c(1,1,1,rep(2,each=3), rep(3, each=4)), labels = c("AD.old.J147", "AD.old", "AD.young")),
+                  drug = factor(c(rep.int(1,3), rep.int(2,7)), labels = c("on drug", "off drug")))
+
+row.names(ann) <- names(data[1:10])
+
+sampledist <- dist(t(rld[,1:10]), method = "euclidean", diag = T, upper = T)
+sampledistmatrix <- as.matrix(sampledist)
+
+pheatmap(sampledistmatrix, show_colnames = T,
+         annotation_col = ann,
+         clustering_distance_rows = sampledist,
+         clustering_distance_cols = sampledist,
+         main = "Euclidean Sample Distances")   
+
+```
+
+
+### heatmap cad-31
+```{r}
+ann <- data.frame(group = factor(c(rep(1,each=3),rep(2,each=3), rep(3, each=3), rep(4,each=4)), labels = c("AD.CAD31", "AD.CTRL","WT-CAD31", "WT")),
+                  drug = factor(c(rep.int(1,3), rep.int(2,3), rep.int(1,3), rep.int(2,4)), labels = c("on drug", "off drug")))
+
+row.names(ann) <- names(data[11:23])
+
+sampledist <- dist(t(rld[,11:23]), method = "euclidean", diag = T, upper = T)
+sampledistmatrix <- as.matrix(sampledist)
+
+pheatmap(sampledistmatrix, show_colnames = T,
+         annotation_col = ann,
+         clustering_distance_rows = sampledist,
+         clustering_distance_cols = sampledist,
+         main = "Euclidean Sample Distances")   
+
+
+```
+
+### multi dimensional scaling plot 
+```{r}
+dds <- assay(ddsMat)
+poisd <- PoissonDistance( t(dds), type = "deseq")
+# Extract the matrix with distances
+samplePoisDistMatrix <- as.matrix(poisd$dd)
+# Calculate the MDS and get the X- and Y-coordinates
+mdsPoisData <- data.frame( cmdscale(samplePoisDistMatrix) )
+
+# And set some better readable names for the columns
+names(mdsPoisData) <- c('x_coord', 'y_coord')
+groups <- factor(c(1,1,1,rep(2,each=7),3,3,3,4,4,4,5,5,5,6,6,6,6),
+                                labels = c("AD.J147", "AD.CTRL", "AD.CAD31", "AD.CTRL","WT-CAD31", "WT"))
+
+coldata <- names(data)
+
+# Create the plot using ggplot
+ggplot(mdsPoisData, aes(x_coord, y_coord, color = groups, label = coldata)) + 
+  geom_text(size = 4) +
+  ggtitle('Multi Dimensional Scaling') +
+  labs(x = "Poisson Distance", y = "Poisson Distance") +
+  theme_bw()
+
+
+
+```
+
+### conclusions EDA
+The first thing that pops out when looking at the images created is that there are big differences between the two datasets.
+This can be seen in the heatmap containing both studies and in the mds plot a well, This throws our comparison of gene 
+expression a bit of, but it shouldn't be to big of a problem because we can just compare the DEG's later on.
+
+A second thing that can be noticed in the heatmap of the j147 is that the age of the mouse seems of high influence on the 
+gene expression but in the mds plot there also is a noticable difference between mice on and of the drug.
+
+The cad-31 study seems to produce some more mixed results, altough harder to detect the same pattern as in the j147 seems
+to apply.
+
+
+```{r}
+# Perform a naive FPM normalization
+# Note: log transformation includes a pseudocount of 1
+counts.fpm <- log2( (data / (colSums(data) / 1e6)) + 1 )
+
+```
+
+
+```{r}
+num.below.one <- 0
+num.below.two <- 0
+
+means <- rowMeans(counts.fpm)
+difference <- c()
+
+num.with.zero <- 0
+num.with.one <- 0
+num.with.zero.rows <- c()
+
+i <- 1
+
+while (i <= length(means)){
+  if(means[i] < 1){
+    num.below.one<- num.below.one+ 1
+  }
+  if(means[i] < 2){
+    num.below.two <- num.below.two +1
+  }
+  j <- 1
+  pass <- F
+  
+  while(j < length(counts.fpm[i,])){
+    if(counts.fpm[i,j] < 1 & pass == F){
+      num.with.zero <- num.with.zero +1
+      pass <- T
+      num.with.zero.rows <- append(num.with.zero.rows, i)
+    }
+    if(counts.fpm[i,j] < 2){
+      num.with.one <- num.with.one +1
+      j <- length(counts.fpm[i,])
+    }
+    j <- j+1
+    
+  }
+  
+  difference <- append(difference, max(counts.fpm[i,])-min(counts.fpm[i,]))
+  
+  i <- i+1}
+
+means <- as.data.frame(means)
+means <- cbind(means, difference)
+means <- means[order(means[1]),]
+
+plot(means$difference,type="h",xlab="number of genes", ylab="row means", col="darkseagreen1")
+lines(means$means,type="l" ,col="blue",)
+abline(v=num.below.one, col="red", lty=2)
+abline(v=num.below.two, col="red", lty=2)
+abline(v=num.with.zero, col="gold", lty=2)
+abline(v=num.with.one, col="gold", lty=2)
+```
+The plot above describes the means of the rows in the normalized data. The abline's in red are values where the means are below 1 and two respectively and the yellow abline's rows that contain values below 1 and 2. The small difference between the abline's below 1 suggests that there isn't much of a difference between the values, the bigger gap between the values of two suggest the opposite.
+
+The difference is seen in the light green histogram in the back, it first shows no difference relative to the means value, but as the mean gets bigger the difference also starts to increase and eventually kinda settles.
+
+Therefore i decide to set the threshold of filtering where none of the values in the row is below one since after that threshold there seems to be a incline of the row means.
+```{r}
+
+original_length <- nrow(counts.fpm)
+counts.fpm <- counts.fpm[-num.with.zero.rows,]
+cat(original_length-nrow(counts.fpm), "rows are deleted")
+```
+
+## Fold Change
+
+
+### j47 old vs old
+```{r}
+two.groups <- as.data.frame(rowMeans(counts.fpm[AD.old.j147]))
+two.groups["AD.old1"] <- rowMeans(counts.fpm[AD.old])
+names(two.groups)[1] <- "AD.old.j147"
+
+two.groups["difference"] <- two.groups$AD.old1 - two.groups$AD.old.j147
+
+hist(two.groups$difference, breaks=60, main = "histogram of fold change difference")
+abline(v=-1, col="red")
+abline(v=1, col="red")
+```
+
+### AD.cad31 vs AD
+```{r}
+two.groups <- as.data.frame(rowMeans(counts.fpm[AD.cad31]))
+two.groups["AD"] <- rowMeans(counts.fpm[AD])
+names(two.groups)[1] <- "AD.cad31"
+
+two.groups["difference"] <- two.groups$AD - two.groups$AD.cad31
+
+hist(two.groups$difference, breaks=60, main = "histogram of fold change difference")
+abline(v=-1, col="red")
+abline(v=1, col="red")
+```
+
+##    Bio conductor
+```{r}
+group <- factor(c(1,1,1,rep(2,each=3),3,3,3,3,4,4,4,5,5,5,6,6,6,rep(7, each=4)),
+                                labels = c("AD.J147", "AD.CTRL.OLD","AD.CTRL.YOUNG", "AD.CAD31", "AD.CTRL","WT-CAD31", "WT"))
+(design <- model.matrix( ~ group))
+
+```
+
+```{r}
+data <- data -1
+```
+
+
+
+```{r}
+dq.dataset <- DESeqDataSetFromMatrix(data, as.data.frame(group), ~group)
+
+
+result <- DESeq(dq.dataset)
+DESeqResults.J147 <- results(result, contrast = c("group", "AD.CTRL.OLD", "AD.J147"),
+               alpha = 0.05)
+DESeqResults.CAD31 <- results(result, contrast = c("group", "AD.CTRL", "AD.CAD31"),
+               alpha = 0.05)
+
+DESeqResults.CTRL <- results(result, contrast = c("group", "AD.CTRL", "WT"),
+               alpha = 0.05)
+
+print(summary(DESeqResults.J147))
+print(summary(DESeqResults.CAD31))
+print(summary(DESeqResults.CTRL))
+
+```
+
+
+```{r}
+plotMA(DESeqResults.J147)
+plotMA(DESeqResults.CAD31)
+plotMA(DESeqResults.CTRL)
+
+result <-lfcShrink(result,coef = 2)
+
+print(summary(DESeqResults.J147))
+plotMA(DESeqResults.J147)
 
 ```
 
@@ -199,7 +428,55 @@ pheatmap(sampledistmatrix, show_colnames = FALSE,
 
 
 
+```{r}
+#create two different datasets
+J147.data <- data[1:10]
+J147.group <-factor(c(1,1,1,rep(2,each=3),3,3,3,3),
+                                labels = c("AD.J147", "AD.CTRL.OLD","AD.CTRL.YOUNG"))
+J147.design <- model.matrix( ~ J147.group)
 
+CAD31.data <- data[11:23]
+CAD31.group <- factor(c(1,1,1,rep(2,each=3),rep(3,each=3), rep(4,each=4)),
+                                labels = c("AD.CAD31", "AD.CTRL","WT-CAD31", "WT"))
+CAD31.design <- model.matrix( ~ CAD31.group)
+
+
+#function
+get_deg <- function(data, group, design){
+dl <- DGEList(data, lib.size = colSums(data), norm.factors = rep(1,ncol(data)), group = group)
+
+ed <- estimateDisp(dl, design = design, robust = TRUE)
+plotBCV(ed)
+
+fit <- glmFit(ed, design)
+
+lrt <- glmLRT(fit)
+print(summary(decideTests(lrt)))
+plotMD(lrt)
+abline(h=c(-1, 1), col="blue")
+
+top.deg <- topTags(lrt)
+
+return(top.deg)
+}
+
+
+J147.obj <- get_deg(J147.data, J147.group, J147.design)
+CAD31.obj <- get_deg(CAD31.data, CAD31.group, CAD31.design)
+```
+
+
+```{r}
+
+```
+
+
+
+```{r}
+plotMD(lrt)
+abline(h=c(-1, 1), col="blue")
+
+```
 
 
 
