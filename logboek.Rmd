@@ -19,15 +19,15 @@ library(pheatmap)
 library(PoiClaClu)
 library(ggplot2)
 library(edgeR)
+library(EnhancedVolcano)
 ```
-
 
 First, we load all our data into r
 
 ```{r}
 #load in the data using the read.table method
-j147 <- read.table("./data/j147.csv", header = T, sep = ",")
-cad31 <- read.table("./data/cad-31.txt", header = T, sep = "\t", fill = T)
+j147 <- read.table("./data/j147.csv", header = T, sep = ",", quote="")
+cad31 <- read.table("./data/cad-31.txt", header = T, sep = "\t", fill = T, quote="")
 
 #create a new column for te gene annotation
 cad31$Gene <- strsplit(cad31$Annotation.Divergence, "|", 1)
@@ -45,10 +45,6 @@ cad31 <- cad31[c(22, 9:21)]
 
 #merge all the data into one dataframe
 data <- merge(j147, cad31)
-
-#delete old dataframes
-rm(cad31)
-rm(j147)
 
 #replace na's with zero's
 data[is.na(data)] <- 0
@@ -75,9 +71,6 @@ AD.cad31 <- 12:14
 AD <- 15:17
 WT.CAD31 <- 18:20
 WT <- 21:24
-
-
-
 ```
 
 ## visualizations
@@ -390,8 +383,8 @@ data <- data -1
 
 
 
-```{r}
-dq.dataset <- DESeqDataSetFromMatrix(data, as.data.frame(group), ~group)
+```{r echo = FALSE}
+dq.dataset <- DESeqDataSetFromMatrix(data, as.data.frame(group), ~0+group)
 
 
 result <- DESeq(dq.dataset)
@@ -410,16 +403,10 @@ print(summary(DESeqResults.CTRL))
 ```
 
 
-```{r}
-plotMA(DESeqResults.J147)
-plotMA(DESeqResults.CAD31)
-plotMA(DESeqResults.CTRL)
-
-result <-lfcShrink(result,coef = 2)
-
-print(summary(DESeqResults.J147))
-plotMA(DESeqResults.J147)
-
+```{r echo = FALSE}
+DESeq2::plotMA(DESeqResults.J147)
+DESeq2::plotMA(DESeqResults.CAD31)
+DESeq2::plotMA(DESeqResults.CTRL)
 ```
 
 
@@ -429,54 +416,73 @@ plotMA(DESeqResults.J147)
 
 
 ```{r}
-#create two different datasets
-J147.data <- data[1:10]
-J147.group <-factor(c(1,1,1,rep(2,each=3),3,3,3,3),
-                                labels = c("AD.J147", "AD.CTRL.OLD","AD.CTRL.YOUNG"))
-J147.design <- model.matrix( ~ J147.group)
-
-CAD31.data <- data[11:23]
-CAD31.group <- factor(c(1,1,1,rep(2,each=3),rep(3,each=3), rep(4,each=4)),
-                                labels = c("AD.CAD31", "AD.CTRL","WT-CAD31", "WT"))
-CAD31.design <- model.matrix( ~ CAD31.group)
-
-
 #function
 get_deg <- function(data, group, design){
-dl <- DGEList(data, lib.size = colSums(data), norm.factors = rep(1,ncol(data)), group = group)
+dl <- DGEList(as.matrix(data), lib.size = colSums(data), norm.factors = rep(1,ncol(data)), group = group)
 
-ed <- estimateDisp(dl, design = design, robust = TRUE)
+dl <- calcNormFactors(dl)
+plotMDS(dl)
+
+ed <- estimateDisp(dl, design = design)
 plotBCV(ed)
 
-fit <- glmFit(ed, design)
-
-lrt <- glmLRT(fit)
-print(summary(decideTests(lrt)))
-plotMD(lrt)
-abline(h=c(-1, 1), col="blue")
-
-top.deg <- topTags(lrt)
-
-return(top.deg)
+et <- exactTest(ed)
+toptag<- topTags(et,n = 1000, p.value = 0.05)
+return(toptag)
 }
-
-
-J147.obj <- get_deg(J147.data, J147.group, J147.design)
-CAD31.obj <- get_deg(CAD31.data, CAD31.group, CAD31.design)
 ```
 
 
 ```{r}
+# Make the comparison data
+J147.data <- data[1:6]
+J147.group <-factor(c(1,1,1,rep(2,each=3)),
+                                labels = c("AD.J147", "AD.CTRL.OLD"))
+J147.design <- model.matrix( ~ J147.group)
 
+
+cad31.AD.cad31.data <- data[11:16]
+cad31.AD.cad31.group <-factor(c(1,1,1,rep(2,each=3)),
+                                labels = c("AD.CAD31", "AD"))
+cad31.AD.cad31.design <- model.matrix( ~ cad31.AD.cad31.group)
+
+
+cad31.wt.cad31.data <- data[17:23]
+cad31.wt.cad31.group <-factor(c(1,1,1,rep(2,each=4)),
+                                labels = c("WT.CAD31", "WT"))
+cad31.wt.cad31.design <- model.matrix( ~ cad31.wt.cad31.group)
 ```
+
+```{r}
+#do the analysis
+j147.toptag <- get_deg(J147.data, J147.group, J147.design)
+cad31.AD.cad31.toptag <- get_deg(cad31.AD.cad31.data, cad31.AD.cad31.group, cad31.AD.cad31.design)
+cad31.wt.cad31.toptag <- get_deg(cad31.wt.cad31.data, cad31.wt.cad31.group, cad31.wt.cad31.design)
+```
+
 
 
 
 ```{r}
-plotMD(lrt)
-abline(h=c(-1, 1), col="blue")
-
+intersect(rownames(cad31.AD.cad31.toptag$table), rownames(j147.toptag$table))
+intersect(rownames(cad31.wt.cad31.toptag$table), rownames(cad31.old.cad31.toptag$table))
 ```
+
+```{r}
+EnhancedVolcano(j147.toptag$table,x = 'logFC', y = 'FDR', lab = rownames(j147.toptag$table))
+EnhancedVolcano(cad31.wt.cad31.toptag$table,x = 'logFC', y = 'FDR', lab = rownames(cad31.wt.cad31.toptag$table))
+EnhancedVolcano(cad31.AD.cad31.toptag$table,x = 'logFC', y = 'FDR', lab = rownames(cad31.AD.cad31.toptag$table))
+```
+
+
+
+
+
+
+
+
+
+
 
 
 
