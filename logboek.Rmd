@@ -3,7 +3,9 @@ title: "thema07"
 author: "keimpe dijkstra"
 date: "8-3-2022"
 output:
-  pdf_document: default
+  pdf_document:
+    fig_caption: true
+    number_sections: true
   html_document:
     df_print: paged
 ---
@@ -20,7 +22,9 @@ library(PoiClaClu)
 library(ggplot2)
 library(edgeR)
 library(EnhancedVolcano)
+library(gplots)
 ```
+\tableofcontents
 
 First, we load all our data into r
 
@@ -427,6 +431,7 @@ ed <- estimateDisp(dl, design = design)
 plotBCV(ed)
 
 et <- exactTest(ed)
+
 toptag<- topTags(et,n = 1000, p.value = 0.05)
 return(toptag)
 }
@@ -461,13 +466,6 @@ cad31.wt.cad31.toptag <- get_deg(cad31.wt.cad31.data, cad31.wt.cad31.group, cad3
 ```
 
 
-
-
-```{r}
-intersect(rownames(cad31.AD.cad31.toptag$table), rownames(j147.toptag$table))
-intersect(rownames(cad31.wt.cad31.toptag$table), rownames(cad31.old.cad31.toptag$table))
-```
-
 ```{r}
 EnhancedVolcano(j147.toptag$table,x = 'logFC', y = 'FDR', lab = rownames(j147.toptag$table))
 EnhancedVolcano(cad31.wt.cad31.toptag$table,x = 'logFC', y = 'FDR', lab = rownames(cad31.wt.cad31.toptag$table))
@@ -475,13 +473,33 @@ EnhancedVolcano(cad31.AD.cad31.toptag$table,x = 'logFC', y = 'FDR', lab = rownam
 ```
 
 
+```{r}
+# Create a Venn-diagram given just the list of gene-names for both sets
+
+venn(list("j147 vs AD.ctrl" = rownames(j147.toptag),
+          "cad31 vs AD.CTRL" = rownames(cad31.AD.cad31.toptag)), )
+
+venn(list("WT vs CAD31.WT" = rownames(cad31.wt.cad31.toptag),
+          "cad31 vs AD.CTRL" = rownames(cad31.AD.cad31.toptag)), )
+
+venn(list("WT vs CAD31.WT" = rownames(cad31.wt.cad31.toptag),
+          "j147 vs AD.ctrl" = rownames(j147.toptag)), )
+
+```
+
+```{r}
+degs <- c(rownames(j147.toptag) , rownames(cad31.wt.cad31.toptag) , rownames(cad31.AD.cad31.toptag))
+
+# Write gene names to a file
+write.table(degs, file = "edger-deg-names.txt",
+            row.names = FALSE, quote = FALSE, col.names = FALSE)
+```
 
 
+```{r}
 
 
-
-
-
+```
 
 
 
