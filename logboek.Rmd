@@ -10,10 +10,7 @@ output:
     df_print: paged
 ---
 # Exploratory data analysis
-
-imports
-```{r}
-library(dplyr)
+EnhancedVolcano(j147.toptag$table,x = 'logFC', y = 'FDR', lab = rownames(j147.toptag$table), title = "Volcano plot", subtitle = "J147 vs AD")yr)
 library(affy)
 library(scales)
 library(DESeq2)
@@ -23,6 +20,8 @@ library(ggplot2)
 library(edgeR)
 library(EnhancedVolcano)
 library(gplots)
+library(SPIA)
+library(dplyr)
 ```
 \tableofcontents
 
@@ -489,20 +488,60 @@ venn(list("WT vs CAD31.WT" = rownames(cad31.wt.cad31.toptag),
 
 ```{r}
 degs <- c(rownames(j147.toptag) , rownames(cad31.wt.cad31.toptag) , rownames(cad31.AD.cad31.toptag))
+j147.degs <- rownames(j147.toptag)
+cad31.degs <- rownames(cad31.AD.cad31.toptag)
 
 # Write gene names to a file
 write.table(degs, file = "edger-deg-names.txt",
+            row.names = FALSE, quote = FALSE, col.names = FALSE)
+
+write.table(j147.degs, file = "edger-j147deg-names.txt",
+            row.names = FALSE, quote = FALSE, col.names = FALSE)
+
+write.table(cad31.degs, file = "edger-cad31deg-names.txt",
             row.names = FALSE, quote = FALSE, col.names = FALSE)
 ```
 
 
 ```{r}
+j147.entrezid.gene <- read.table("j147_entrezid_gene.txt", header = T, sep = "\t")
+j147.entrezid.gene.conversion <- as.data.frame(rownames(j147.entrezid.gene))
+j147.entrezid.gene.conversion$entrez <- j147.entrezid.gene$From
+colnames(j147.entrezid.gene.conversion)[1] <- "gene_name"
 
+temp <- as.data.frame(rownames(j147.toptag$table))
+temp$logFc <- j147.toptag$table$logFC
+colnames(temp)[1] <- "gene_name"
+
+j147.entrezid.logFC <- merge(j147.entrezid.gene.conversion, temp, by="gene_name")
+
+j147.de <- c(j147.entrezid.logFC$logFc)
+names(j147.de) <- c(j147.entrezid.logFC$entrez)
+
+
+
+cad31.entrezid.gene <- read.table("cad31_entrezid_gene.txt", header = T, sep = "\t", quote = "")
+cad31.entrezid.gene.conversion <- as.data.frame(cad31.entrezid.gene$From)
+cad31.entrezid.gene.conversion$entrez <- cad31.entrezid.gene$To
+colnames(cad31.entrezid.gene.conversion)[1] <- "gene_name"
+
+temp <- as.data.frame(rownames(cad31.AD.cad31.toptag$table))
+temp$logFc <- cad31.AD.cad31.toptag$table$logFC
+colnames(temp)[1] <- "gene_name"
+
+cad31.entrezid.logFC <- merge(cad31.entrezid.gene.conversion, temp, by="gene_name")
+
+cad31.de <- c(cad31.entrezid.logFC$logFc)
+names(cad31.de) <- c(cad31.entrezid.logFC$entrez)
 
 ```
 
 
-
+```{r}
+# Process all signaling pathways to see if they are inhibited or activated
+j147.spia.result <- spia(de=j147.de, all=j147.entrezid.logFC$entrez, organism="mmu", plots=TRUE)
+cad31.spia.result <- spia(de=cad31.de, all=cad31.entrezid.logFC$entrez, organism="mmu", plots=TRUE)
+```
 
 
 
